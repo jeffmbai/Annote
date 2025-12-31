@@ -1,97 +1,275 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Annote - Notes Application
 
-# Getting Started
+A modern React Native notes application with Supabase authentication, offline support using SQLite, and Zustand for state management. Built with TypeScript for type safety and a clean, user-friendly interface.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- ** Authentication**: Secure sign up, login, and logout with Supabase
+- ** Session Persistence**: Users stay logged in after app restart
+- ** Offline Support**: Full offline functionality using SQLite
+- ** Auto Sync**: Automatic synchronization when connection is restored
+- ** State Management**: Zustand for clean and efficient state management
+- ** Network Awareness**: Visual indicators when device is offline
+- ** Modern UI**: Clean, intuitive interface with custom modals
+- ** Rich Note Management**: Create, edit, delete, and organize notes
+- ** Toast Notifications**: User-friendly feedback for actions and network changes
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Tech Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- **React Native** 0.83.1 - Mobile framework
+- **TypeScript** - Type safety
+- **Supabase** - Backend and authentication
+- **Zustand** - State management
+- **SQLite** (react-native-quick-sqlite) - Local database
+- **React Navigation** - Navigation
+- **AsyncStorage** - Persistent storage
+- **NetInfo** - Network status detection
+- **React Native Toast Message** - Toast notifications
 
-```sh
-# Using npm
-npm start
+## Prerequisites
 
-# OR using Yarn
-yarn start
+Before you begin, ensure you have the following installed:
+
+- **Node.js** >= 20
+- **npm** or **yarn**
+- **React Native development environment** set up
+  - For Android: Android Studio, JDK, Android SDK
+  - For iOS: Xcode, CocoaPods (macOS only)
+- **A Supabase account** (free tier works)
+
+## Getting Started
+
+### Step 1: Clone and Install Dependencies
+
+```bash
+# Clone the repository
+git clone https://github.com/jeffmbai/Annote.git
+cd Annote
+
+# Install dependencies
+npm install
 ```
 
-## Step 2: Build and run your app
+### Step 2: Set Up Environment Variables
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Create a `.env` file in the root directory:
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-### iOS
+### Step 3: Set Up Supabase
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+#### 3.1 Create a Supabase Project
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+1. Go to [https://supabase.com](https://supabase.com)
+2. Sign up or log in to your account
+3. Create new project
+4. Get Project Url and Anon public key
+5. Add these to your `.env` file:
+   ```env
+   SUPABASE_URL=https://your-project-id.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key-here
+   ```
 
-```sh
+#### 3.3 Create the Notes Table
+
+1. Execute SQL
+
+```sql
+-- Create notes table
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted BOOLEAN DEFAULT FALSE
+);
+
+-- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_deleted ON notes(deleted);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+
+-- Create policy: Users can only see their own notes
+CREATE POLICY "Users can view their own notes"
+  ON notes FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Create policy: Users can insert their own notes
+CREATE POLICY "Users can insert their own notes"
+  ON notes FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Create policy: Users can update their own notes
+CREATE POLICY "Users can update their own notes"
+  ON notes FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Create policy: Users can delete their own notes
+CREATE POLICY "Users can delete their own notes"
+  ON notes FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Create function to automatically update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger to automatically update updated_at
+CREATE TRIGGER update_notes_updated_at
+  BEFORE UPDATE ON notes
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+```
+
+#### 3.4 Configure Authentication
+
+1. In your Supabase dashboard, go to **Authentication** → **Settings**
+2. Ensure **Email** provider is enabled (should be enabled by default)
+
+### Step 4: Install Native Dependencies
+
+#### iOS (macOS only)
+
+```bash
+cd ios
 bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
 bundle exec pod install
+cd ..
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+#### Android
 
-```sh
-# Using npm
+Android dependencies are automatically linked. If you encounter issues, you may need to:
+
+```bash
+cd android
+./gradlew clean
+cd ..
+```
+
+### Step 5: Start Metro Bundler
+
+```bash
+npm start
+```
+
+Or with cache reset:
+
+```bash
+npm start -- --reset-cache
+```
+
+### Step 6: Run the App
+
+#### Android
+
+```bash
+npm run android
+```
+
+#### iOS
+
+```bash
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Project Structure
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```
+Annote/
+├── android/                 # Android native code
+├── ios/                     # iOS native code
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── DeleteNoteModal.tsx    # Modal for delete confirmation
+│   │   ├── NotesHeader.tsx        # Header component with user info
+│   │   └── SignOutModal.tsx       # Modal for sign out confirmation
+│   ├── config/              # Configuration files
+│   │   └── supabase.ts      # Supabase client setup
+│   ├── db/                  # Database related files
+│   │   └── database.ts      # SQLite database initialization
+│   ├── navigation/          # Navigation setup
+│   │   └── AppNavigator.tsx # Main navigation configuration
+│   ├── screens/             # Screen components
+│   │   ├── LoginScreen.tsx       # User login screen
+│   │   ├── SignUpScreen.tsx      # User registration screen
+│   │   ├── NotesListScreen.tsx   # List of all notes
+│   │   └── NoteDetailScreen.tsx  # Note detail/edit screen
+│   ├── store/               # Zustand state stores
+│   │   ├── authStore.ts     # Authentication state management
+│   │   └── notesStore.ts    # Notes state management
+│   ├── types/               # TypeScript type definitions
+│   │   └── env.d.ts         # Environment variables types
+│   └── utils/               # Utility functions
+│       └── userUtils.ts     # User-related utility functions
+├── .env                     # Environment variables (not in git)
+├── .gitignore               # Git ignore rules
+├── App.tsx                  # Root component
+├── babel.config.js          # Babel configuration
+├── index.js                 # Entry point
+├── metro.config.js          # Metro bundler configuration
+├── package.json             # Dependencies and scripts
+├── tsconfig.json            # TypeScript configuration
+└── README.md                # This file
+```
 
-## Step 3: Modify your app
+## Architecture
 
-Now that you have successfully run the app, let's make changes!
+### Authentication Flow
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+1. User signs up or logs in through Supabase
+2. Session is stored in AsyncStorage (handled by Supabase client)
+3. On app restart, the session is automatically restored
+4. User stays logged in until they explicitly log out
+5. On logout, user-specific notes are cleared from local storage
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+### Offline Handling
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+1. **Local-First Approach**: All notes are stored locally in SQLite
+2. **Online Sync**: When online, changes sync with Supabase
+3. **Offline Mode**:
+   - Users can create, edit, and delete notes
+   - Changes are marked as unsynced
+   - Visual indicators show offline status
+4. **Auto Sync**: When connection is restored:
+   - Toast notification appears
+   - All unsynced changes are automatically synced
+   - Local database is updated with server data
 
-## Congratulations! :tada:
+### State Management
 
-You've successfully run and modified your React Native App. :partying_face:
+The app uses **Zustand** for state management with two main stores:
 
-### Now what?
+- **`authStore`**: Manages authentication state
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+  - User session
+  - Sign up, sign in, sign out methods
+  - Session initialization
 
-# Troubleshooting
+- **`notesStore`**: Manages notes state
+  - Notes list
+  - CRUD operations (Create, Read, Update, Delete)
+  - Sync logic
+  - Network status
+  - Offline/online handling
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+### Data Flow
 
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```
+User Action → Zustand Store → Local SQLite DB → Supabase (if online)
+                                      ↓
+                              Update Store State
+                                      ↓
+                              UI Re-renders
+```
